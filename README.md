@@ -58,6 +58,8 @@ also varies between donors, and the results do not establish generalization to o
 
 ## Interactive demonstration
 
+[Try the live app](https://mystisdev-cellstates-app-5hzvrr.streamlit.app/).
+
 The Streamlit app in [app.py](app.py) lets users select a held-out donor and predict the expression
 profile of each cell using the saved model. Users can inspect predicted probabilities, reveal the
 recorded donor condition, and explore the genes contributing to an individual prediction.
