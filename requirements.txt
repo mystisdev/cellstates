@@ -1,0 +1,11 @@
+# Streamlit app and plots
+streamlit==1.66.0
+matplotlib==3.11.2
+
+# Example data and the saved model
+anndata==0.12.19
+numpy==2.5.4
+pandas==2.3.3
+scipy==1.18.1
+scikit-learn==1.9.1
+xgboost==3.4.1

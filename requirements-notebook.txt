@@ -1,0 +1,7 @@
+# App dependencies also provide the model and plotting libraries
+-r requirements.txt
+
+# Additional libraries used in pipeline.ipynb
+scanpy==1.12.4
+seaborn==0.13.2
+ipykernel==7.4.0

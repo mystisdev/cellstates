@@ -1,4 +1,17 @@
 .DS_Store
 
-# Generated models and prediction tables
+# Local environment and Python caches
+.venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Full datasets, previous work, and generated results
+data/
+archive/
 outputs/
+
+# Local credentials
+.env
+.env.*
+.streamlit/secrets.toml
