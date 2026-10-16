@@ -1,112 +1,72 @@
-# cellstates
+# CellStates
 
-A class project predicting whether CD14-positive monocyte expression resembles cells from
-COVID-19 patients or healthy donors in the Newcastle subset of Stephenson et al. (2021).
+## Project question
 
-## Run the presentation app
+Can we use a monocyte's gene expression to predict whether it comes from a COVID-19 patient
+or a healthy donor, when the donor was not seen during training?
 
-Use Python 3.12. From this project directory, create an environment and install the app dependencies:
+This class project uses single-cell RNA sequencing data to explore that question. We build an
+XGBoost classifier, evaluate it on held-out donors, and use gene contributions to examine
+individual predictions.
 
-```bash
-uv venv --python 3.12
-uv pip install --python .venv/bin/python -r requirements.txt
-```
+## Data
 
-Start Streamlit:
+We use the processed, subsampled PBMC dataset from
+[Stephenson et al. (2021)](https://doi.org/10.1038/s41591-021-01329-2).
+We select CD14-positive monocytes from Newcastle donors with either a COVID-19 or healthy label.
+Keeping one cell type and one collection site makes the comparison more focused and reduces
+differences due to cell composition and collection site.
 
-```bash
-.venv/bin/python -m streamlit run app.py
-```
+The selected data contain **5,934 cells from 54 donor groups**, with 16,299 genes before feature
+filtering. There are 5,134 cells from COVID-19 donors and 800 from healthy donors. We retain the
+processed file's normalized, log-transformed expression values rather than normalizing them again.
+The target is the donor's recorded clinical condition; the model uses gene expression as input.
 
-If you already have the project environment, skip `uv venv` and just install the requirements.
+## What we did
 
-Open **http://localhost:8501** if the browser doesn't open automatically. Keep the terminal
-running during the presentation; press **Ctrl+C** there to stop the app.
+The analysis is in [pipeline.ipynb](pipeline.ipynb).
 
-Choose a donor, click **Predict**, explore the cell predictions, and optionally reveal the donor's
-recorded condition. **Download predictions as CSV** exports full cell IDs, donor ID, predicted
-condition, and COVID-19 probability on a 0–1 scale. The on-screen probabilities are percentages.
+1. Inspect the processed data and select the cells and donors for our question.
+2. Split donors into training and test sets, keeping every cell from a donor in the same set.
+   This gives 43 training donors (4,340 cells) and 11 test donors (1,594 cells).
+3. Remove constant genes within the fitted pipeline and train an XGBoost classifier. Use balanced
+   sample weights to account for the unequal numbers of cells in the two classes.
+4. Tune the number of trees, learning rate, and tree depth over eight parameter combinations
+   using five-fold cross-validation within the training donors. Each fold also keeps donors
+   separate, and gene filtering and class weights are fitted using only that fold's training data.
+5. Select the parameters with the highest mean validation balanced accuracy, refit on the
+   training set, and evaluate on the held-out test donors. Compare with a majority-class baseline
+   and inspect performance for individual donors.
 
-After predicting, **Why this prediction?** lets you choose an individual cell. It shows the ten
-largest signed gene contributions for that cell: positive contributions push the model toward
-COVID-19 and negative ones toward healthy. These are XGBoost's native SHAP contributions in
-log-odds, not probability percentage points or causal effects. Contributions from all genes plus
-the reference score reconstruct the prediction; the chart displays only the largest ten.
-Explanations are cached for each cell and don't require retraining or an extra SHAP package.
+The selected model uses 200 trees, a learning rate of 0.1, and a maximum tree depth of 2.
 
-The app runs the saved model on expression data when you click Predict. It doesn't run training,
-display stored test scores, or accept uploads. Predictions refer to donor-condition profiles in
-this study and aren't a diagnosis or a test of individual cell infection.
+## Results
 
-## Files used by the app
+The selected model's mean cross-validation balanced accuracy was **92.7%**.
+On the held-out test donors, the cell-level results were:
 
-- `app.py` contains the interface, model loading, and prediction code.
-- `.streamlit/config.toml` sets the colors for the interface.
-- `examples/heldout_cells.h5ad` contains all 1,594 cells from the 11 actual test donors.
-- `models/xgboost.pkl` contains the fitted pipeline, gene order, and label meanings.
-- `requirements.txt` records the app dependencies, including the model's training-library versions.
+| Metric | Majority-class baseline | XGBoost |
+| --- | ---: | ---: |
+| Balanced accuracy | 50.0% | 85.2% |
+| ROC AUC | 0.500 | 0.959 |
+| Matthews correlation coefficient | 0.000 | 0.579 |
 
-The example cells retain their downloaded expression values and use the model's saved input-gene
-order. Their IDs come from the saved `test_predictions.csv`; no new split is made. Model inputs
-contain only expression, while donor information is used to select examples and reveal the known condition.
+We emphasize balanced accuracy because the classes are unequal. These results come from one
+held-out donor split, with only two healthy test donors. Cells from the same donor are related,
+so the number of cells should not be treated as the number of independent samples. Performance
+also varies between donors, and the results do not establish generalization to other sites or studies.
 
-The saved model and example cells are included in the repository. The full source dataset and
-notebooks are not needed to run the app. Keep the pinned library versions when loading the
-saved model.
+## Interactive demonstration
 
-## Training and exporting examples
+The Streamlit app in [app.py](app.py) lets users select a held-out donor and predict the expression
+profile of each cell using the saved model. Users can inspect predicted probabilities, reveal the
+recorded donor condition, and explore the genes contributing to an individual prediction.
 
-Install the additional notebook dependencies into the same environment:
+The explanations use local SHAP values calculated directly by XGBoost. Positive contributions
+push the prediction toward COVID-19 and negative contributions toward healthy, on a log-odds
+scale. These describe the model's predictions and do not establish that a gene causes disease.
 
-```bash
-uv pip install --python .venv/bin/python -r requirements-notebook.txt
-```
-
-Download `stephenson_2021_subsampled.h5ad` using the link in the notebook's **Load the Data**
-section and put it in `data/`. Run the notebook from the project root using the `.venv` kernel.
-The source dataset is already in that folder locally; it is not included in GitHub.
-
-`pipeline.ipynb` prepares the data, tunes XGBoost using five donor-grouped folds, evaluates it on
-held-out donors, and saves the model. The **Export Examples for the App** cell exports those same
-test cells to `examples/heldout_cells.h5ad`. Run the notebook through the model-saving cell before
-exporting examples. The example file is already prepared, so you don't need to rerun the notebook
-to use the app. If you replace the saved model or examples, restart Streamlit to reload them.
-
-The notebook saves the fitted model to `models/xgboost.pkl` and evaluation tables to
-`outputs/covid_newcastle_xgboost/`. Earlier notebooks, the old reference notebook, and melanoma
-files are preserved locally in `archive/`. The `data/`, `archive/`, `outputs/`, and `.venv/`
-folders are ignored by Git.
-
-## Publish the app
-
-Commit the app, notebook, dependency files, theme, saved model, and example cells to GitHub.
-No training step is needed during deployment. From the project root:
-
-```bash
-git status --short
-git add -A
-git commit -m "Prepare Streamlit demo for deployment"
-git push origin main
-```
-
-The two old tracked notebooks will appear as deletions in Git. Their local copies remain in
-`archive/`, and previous commits retain their history.
-
-In [Streamlit Community Cloud](https://share.streamlit.io/), connect your GitHub account and
-choose **Create app**. Use these settings for this repository:
-
-- Repository: `mystisdev/cellstates`
-- Branch: `main`
-- Main file path: `app.py`
-- Advanced settings → Python version: `3.12`
-
-Leave secrets empty; this app does not use API keys or external services. Choose an optional
-app URL and click **Deploy**. Community Cloud installs `requirements.txt`; the separate
-`requirements-notebook.txt` is only for running the training notebook locally. Later pushes
-to the deployed branch update the app.
-
-See the [official deployment instructions](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy).
-If deployment fails, check the build logs first. A successful local check does not verify the
-Linux environment used by Community Cloud.
-
-Dataset: [Stephenson et al., Single-cell multi-omics analysis of the immune response in COVID-19](https://doi.org/10.1038/s41591-021-01329-2).
+The saved model is in `models/`, and the example cells are in `examples/`. All example donors
+come from the actual test set and were excluded from training and parameter tuning.
+The predictions describe donor-condition expression profiles; they do not identify whether an
+individual cell is infected.
